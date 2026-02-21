@@ -7,19 +7,17 @@ VG_NAME="vg_arch"
 PASSWORD="azerty123"
 HOSTNAME="archlinux"
 
-### Pré-checks basiques ###
 if [[ ! -d /sys/firmware/efi ]]; then
   echo "ERREUR: Le système n'est pas booté en UEFI."
   exit 1
 fi
 
 if [[ ! -b "$DISK" ]]; then
-  echo "ERREUR: Disque $DISK introuvable."
+  echo "ERREUR: Le disque $DISK est introuvable. Veuillez recommencer"
   lsblk
   exit 1
 fi
 
-### Partitionnement (GPT + EFI + LUKS) ###
 sgdisk --zap-all "$DISK"
 sgdisk -n 1:0:+512M -t 1:ef00 "$DISK"
 sgdisk -n 2:0:0     -t 2:8300 "$DISK"
@@ -29,7 +27,6 @@ sleep 1
 
 mkfs.fat -F32 "${DISK}1"
 
-### LUKS + LVM ###
 echo -n "$PASSWORD" | cryptsetup luksFormat "${DISK}2" -
 echo -n "$PASSWORD" | cryptsetup open "${DISK}2" "$CRYPT_NAME" -
 
@@ -49,13 +46,11 @@ mkfs.ext4 "/dev/$VG_NAME/lv_vbox"
 mkfs.ext4 "/dev/$VG_NAME/lv_shared"
 mkswap    "/dev/$VG_NAME/lv_swap"
 
-# LUKS dessus + FS sans de montage auto
 echo -n "$PASSWORD" | cryptsetup luksFormat "/dev/$VG_NAME/lv_secret" -
 echo -n "$PASSWORD" | cryptsetup open "/dev/$VG_NAME/lv_secret" secretvol -
 mkfs.ext4 /dev/mapper/secretvol
 cryptsetup close secretvol
 
-### Montage ###
 mount "/dev/$VG_NAME/lv_root" /mnt
 mkdir -p /mnt/{boot,home,var/lib/virtualbox,srv/shared}
 mount "${DISK}1" /mnt/boot
@@ -64,7 +59,6 @@ mount "/dev/$VG_NAME/lv_vbox" /mnt/var/lib/virtualbox
 mount "/dev/$VG_NAME/lv_shared" /mnt/srv/shared
 swapon "/dev/$VG_NAME/lv_swap"
 
-### Installation de base ###
 pacstrap /mnt base linux linux-firmware \
   lvm2 cryptsetup sudo vim nano \
   networkmanager i3 i3status dmenu \
@@ -72,7 +66,6 @@ pacstrap /mnt base linux linux-firmware \
 
 genfstab -U /mnt >> /mnt/etc/fstab
 
-### Chroot ###
 arch-chroot /mnt /bin/bash <<EOF
 set -euo pipefail
 
